@@ -14,19 +14,7 @@
  * limitations under the License.
  */
 
-require('@google-cloud/profiler').start({
-  serviceContext: {
-    service: 'currencyservice',
-    version: '1.0.0'
-  }
-});
-require('@google-cloud/trace-agent').start();
-require('@google-cloud/debug-agent').start({
-  serviceContext: {
-    service: 'currencyservice',
-    version: 'VERSION'
-  }
-});
+require('@instana/collector')();
 
 const path = require('path');
 const grpc = require('grpc');
@@ -89,7 +77,7 @@ function _carry (amount) {
  * Lists the supported currencies
  */
 function getSupportedCurrencies (call, callback) {
-  logger.info('Getting supported currencies...');
+  console.log('Getting supported currencies...');
   _getCurrencyData((data) => {
     callback(null, {currency_codes: Object.keys(data)});
   });
@@ -99,7 +87,7 @@ function getSupportedCurrencies (call, callback) {
  * Converts between currencies
  */
 function convert (call, callback) {
-  logger.info('received conversion request');
+  console.log('received conversion request');
   try {
     _getCurrencyData((data) => {
       const request = call.request;
@@ -123,7 +111,7 @@ function convert (call, callback) {
       result.nanos = Math.floor(result.nanos);
       result.currency_code = request.to_code;
 
-      logger.info(`conversion request successful`);
+      console.log(`conversion request successful`);
       callback(null, result);
     });
   } catch (err) {
@@ -144,11 +132,11 @@ function check (call, callback) {
  * CurrencyConverter service at the sample server port
  */
 function main () {
-  logger.info(`Starting gRPC server on port ${PORT}...`);
+  console.log(`Starting gRPC server on port 7000..`);
   const server = new grpc.Server();
   server.addService(shopProto.CurrencyService.service, {getSupportedCurrencies, convert});
   server.addService(healthProto.Health.service, {check});
-  server.bind(`0.0.0.0:${PORT}`, grpc.ServerCredentials.createInsecure());
+  server.bind(`0.0.0.0:7000`, grpc.ServerCredentials.createInsecure());
   server.start();
 }
 

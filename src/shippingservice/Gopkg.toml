@@ -24,6 +24,14 @@
 #   go-tests = true
 #   unused-packages = true
 
+[[constraint]]
+  name = "github.com/instana/go-sensor"
+  branch = "master"
+
+[[constraint]]
+  name = "github.com/opentracing/opentracing-go"
+  branch = "master"
+
 
 [[constraint]]
   name = "cloud.google.com/go"
@@ -52,3 +60,8 @@
 [prune]
   go-tests = true
   unused-packages = true
+
+[[constraint]]
+  name = "github.com/grpc-ecosystem/grpc-opentracing"
+  branch = "master"
+

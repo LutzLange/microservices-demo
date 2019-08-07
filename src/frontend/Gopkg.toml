@@ -23,15 +23,17 @@
 #   non-go = false
 #   go-tests = true
 #   unused-packages = true
+[[constraint]]
+  name = "github.com/LutzLange/go-sensor"
+  branch = "master"
 
+[[constraint]]
+  name = "github.com/opentracing/opentracing-go"
+  branch = "master"
 
 [[constraint]]
   name = "cloud.google.com/go"
   version = "0.40.0"
-
-[[constraint]]
-  name = "contrib.go.opencensus.io/exporter/stackdriver"
-  version = "0.5.0"
 
 [[constraint]]
   name = "github.com/golang/protobuf"
@@ -54,13 +56,14 @@
   version = "1.0.6"
 
 [[constraint]]
-  name = "go.opencensus.io"
-  version = "0.16.0"
-
-[[constraint]]
   branch = "master"
   name = "golang.org/x/net"
 
 [prune]
   go-tests = true
   unused-packages = true
+
+[[constraint]]
+  name = "github.com/grpc-ecosystem/grpc-opentracing"
+  branch = "master"
+

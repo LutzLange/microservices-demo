@@ -21,18 +21,15 @@ import (
 	"os"
 	"time"
 
-	"cloud.google.com/go/profiler"
-	"contrib.go.opencensus.io/exporter/stackdriver"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"go.opencensus.io/exporter/jaeger"
-	"go.opencensus.io/plugin/ocgrpc"
-	"go.opencensus.io/plugin/ochttp"
-	"go.opencensus.io/plugin/ochttp/propagation/b3"
-	"go.opencensus.io/stats/view"
-	"go.opencensus.io/trace"
 	"google.golang.org/grpc"
+	// Added Instana
+	instana "github.com/LutzLange/go-sensor"
+	ot "github.com/opentracing/opentracing-go"
+	// "github.com/opentracing/opentracing-go/ext"
+	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 )
 
 const (
@@ -43,6 +40,8 @@ const (
 	cookiePrefix    = "shop_"
 	cookieSessionID = cookiePrefix + "session-id"
 	cookieCurrency  = cookiePrefix + "currency"
+
+	service = "frontend"
 )
 
 var (
@@ -53,6 +52,15 @@ var (
 		"JPY": true,
 		"GBP": true,
 		"TRY": true}
+	/*
+		tracer = instana.NewTracerWithOptions(&instana.Options{
+			Service:  service,
+			LogLevel: instana.Debug})
+	*/
+	// add Instana Tracing
+	sensor = instana.NewSensor(service)
+	tracer = sensor.Tracer()
+	//var sensor = &instana.Sensor{tracer}
 )
 
 type ctxKeySessionID struct{}
@@ -94,8 +102,10 @@ func main() {
 	}
 	log.Out = os.Stdout
 
-	go initProfiling(log, "frontend", "1.0.0")
-	go initTracing(log)
+	//go initProfiling(log, "frontend", "1.0.0")
+	//go initTracing(log)
+
+	ot.InitGlobalTracer(tracer)
 
 	srvPort := port
 	if os.Getenv("PORT") != "" {
@@ -120,14 +130,14 @@ func main() {
 	mustConnGRPC(ctx, &svc.adSvcConn, svc.adSvcAddr)
 
 	r := mux.NewRouter()
-	r.HandleFunc("/", svc.homeHandler).Methods(http.MethodGet, http.MethodHead)
-	r.HandleFunc("/product/{id}", svc.productHandler).Methods(http.MethodGet, http.MethodHead)
-	r.HandleFunc("/cart", svc.viewCartHandler).Methods(http.MethodGet, http.MethodHead)
-	r.HandleFunc("/cart", svc.addToCartHandler).Methods(http.MethodPost)
-	r.HandleFunc("/cart/empty", svc.emptyCartHandler).Methods(http.MethodPost)
-	r.HandleFunc("/setCurrency", svc.setCurrencyHandler).Methods(http.MethodPost)
-	r.HandleFunc("/logout", svc.logoutHandler).Methods(http.MethodGet)
-	r.HandleFunc("/cart/checkout", svc.placeOrderHandler).Methods(http.MethodPost)
+	r.HandleFunc("/", sensor.TracingHandler("homeHandler", svc.homeHandler)).Methods(http.MethodGet, http.MethodHead)
+	r.HandleFunc("/product/{id}", sensor.TracingHandler("productHandler", svc.productHandler)).Methods(http.MethodGet, http.MethodHead)
+	r.HandleFunc("/cart", sensor.TracingHandler("viewCartHandler", svc.viewCartHandler)).Methods(http.MethodGet, http.MethodHead)
+	r.HandleFunc("/cart", sensor.TracingHandler("addToCartHandler", svc.addToCartHandler)).Methods(http.MethodPost)
+	r.HandleFunc("/cart/empty", sensor.TracingHandler("emptyCartHandler", svc.emptyCartHandler)).Methods(http.MethodPost)
+	r.HandleFunc("/setCurrency", sensor.TracingHandler("setCurrencyHandler", svc.setCurrencyHandler)).Methods(http.MethodPost)
+	r.HandleFunc("/logout", sensor.TracingHandler("logoutHandler", svc.logoutHandler)).Methods(http.MethodGet)
+	r.HandleFunc("/cart/checkout", sensor.TracingHandler("placeOrderHandler", svc.placeOrderHandler)).Methods(http.MethodPost)
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
 	r.HandleFunc("/robots.txt", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "User-agent: *\nDisallow: /") })
 	r.HandleFunc("/_healthz", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "ok") })
@@ -135,116 +145,12 @@ func main() {
 	var handler http.Handler = r
 	handler = &logHandler{log: log, next: handler} // add logging
 	handler = ensureSessionID(handler)             // add session ID
-	handler = &ochttp.Handler{                     // add opencensus instrumentation
-		Handler:     handler,
-		Propagation: &b3.HTTPFormat{}}
+	//handler = &ochttp.Handler{                     // add opencensus instrumentation
+	//	Handler:     handler,
+	//	Propagation: &b3.HTTPFormat{}}
 
 	log.Infof("starting server on " + addr + ":" + srvPort)
 	log.Fatal(http.ListenAndServe(addr+":"+srvPort, handler))
-}
-
-func initJaegerTracing(log logrus.FieldLogger) {
-
-	svcHost := os.Getenv("JAEGER_SERVICE_HOST")
-	if svcHost == "" {
-		log.Info("jaeger initialization disabled.")
-		return
-	}
-
-	svcPort := os.Getenv("JAEGER_SERVICE_PORT")
-	svcPath := os.Getenv("JAEGER_SERVICE_PATH")
-        svcFull := fmt.Sprintf("http://%s:%s%s", svcHost, svcPort, svcPath)
-
-	// Register the Jaeger exporter to be able to retrieve
-	// the collected spans.
-	exporter, err := jaeger.NewExporter(jaeger.Options{
-		// Endpoint: fmt.Sprintf("http://%s:%s%s", svcHost, svcPort, svcPath),
-		Endpoint: svcFull,
-		Process: jaeger.Process{
-			ServiceName: "frontend",
-		},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	trace.RegisterExporter(exporter)
-	log.Info("jaeger initialization completed. connected to ", svcFull)
-}
-
-func initStats(log logrus.FieldLogger, exporter *stackdriver.Exporter) {
-	view.SetReportingPeriod(60 * time.Second)
-	view.RegisterExporter(exporter)
-	if err := view.Register(ochttp.DefaultServerViews...); err != nil {
-		log.Warn("Error registering http default server views")
-	} else {
-		log.Info("Registered http default server views")
-	}
-	if err := view.Register(ocgrpc.DefaultClientViews...); err != nil {
-		log.Warn("Error registering grpc default client views")
-	} else {
-		log.Info("Registered grpc default client views")
-	}
-}
-
-func initStackdriverTracing(log logrus.FieldLogger) {
-	// TODO(ahmetb) this method is duplicated in other microservices using Go
-	// since they are not sharing packages.
-	for i := 1; i <= 3; i++ {
-		log = log.WithField("retry", i)
-		exporter, err := stackdriver.NewExporter(stackdriver.Options{})
-		if err != nil {
-			// log.Warnf is used since there are multiple backends (stackdriver & jaeger)
-			// to store the traces. In production setup most likely you would use only one backend.
-			// In that case you should use log.Fatalf.
-			log.Warnf("failed to initialize Stackdriver exporter: %+v", err)
-		} else {
-			trace.RegisterExporter(exporter)
-			log.Info("registered Stackdriver tracing")
-
-			// Register the views to collect server stats.
-			initStats(log, exporter)
-			return
-		}
-		d := time.Second * 20 * time.Duration(i)
-		log.Debugf("sleeping %v to retry initializing Stackdriver exporter", d)
-		time.Sleep(d)
-	}
-	log.Warn("could not initialize Stackdriver exporter after retrying, giving up")
-}
-
-func initTracing(log logrus.FieldLogger) {
-	// This is a demo app with low QPS. trace.AlwaysSample() is used here
-	// to make sure traces are available for observation and analysis.
-	// In a production environment or high QPS setup please use
-	// trace.ProbabilitySampler set at the desired probability.
-	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
-
-	initJaegerTracing(log)
-	initStackdriverTracing(log)
-
-}
-
-func initProfiling(log logrus.FieldLogger, service, version string) {
-	// TODO(ahmetb) this method is duplicated in other microservices using Go
-	// since they are not sharing packages.
-	for i := 1; i <= 3; i++ {
-		log = log.WithField("retry", i)
-		if err := profiler.Start(profiler.Config{
-			Service:        service,
-			ServiceVersion: version,
-			// ProjectID must be set if not running on GCP.
-			// ProjectID: "my-project",
-		}); err != nil {
-			log.Warnf("warn: failed to start profiler: %+v", err)
-		} else {
-			log.Info("started Stackdriver profiler")
-			return
-		}
-		d := time.Second * 10 * time.Duration(i)
-		log.Debugf("sleeping %v to retry initializing Stackdriver profiler", d)
-		time.Sleep(d)
-	}
-	log.Warn("warning: could not initialize Stackdriver profiler after retrying, giving up")
 }
 
 func mustMapEnv(target *string, envKey string) {
@@ -257,10 +163,31 @@ func mustMapEnv(target *string, envKey string) {
 
 func mustConnGRPC(ctx context.Context, conn **grpc.ClientConn, addr string) {
 	var err error
+
+	/*
+		Define a Decorator Function to set rpc.call Tags on all traces
+		type SpanDecoratorFunc func(
+				  span opentracing.Span,
+				  method string,
+				  req, resp interface{},
+				  grpcError error)
+	*/
+	decorator := func(
+		span ot.Span,
+		method string,
+		req, resp interface{},
+		grpcError error) {
+		span.SetTag("rpc.call", method)
+	}
+
+	// create the otgrpc.Options for use below
+	rpcdecor := otgrpc.SpanDecorator(decorator)
+
 	*conn, err = grpc.DialContext(ctx, addr,
 		grpc.WithInsecure(),
 		grpc.WithTimeout(time.Second*3),
-		grpc.WithStatsHandler(&ocgrpc.ClientHandler{}))
+		grpc.WithUnaryInterceptor(otgrpc.OpenTracingClientInterceptor(tracer, rpcdecor)),
+		grpc.WithStreamInterceptor(otgrpc.OpenTracingStreamClientInterceptor(tracer, rpcdecor)))
 	if err != nil {
 		panic(errors.Wrapf(err, "grpc: failed to connect %s", addr))
 	}

@@ -25,6 +25,11 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	ot "github.com/opentracing/opentracing-go"
+	//"github.com/opentracing/opentracing-go"
+	//ext "github.com/opentracing/opentracing-go/ext"
+	// "github.com/opentracing/opentracing-go/log"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
@@ -40,23 +45,33 @@ var (
 )
 
 func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
+	parentSpan, _ := ot.StartSpanFromContext(r.Context(), "frontend.homeHandler")
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	log.WithField("currency", currentCurrency(r)).Info("home")
+
+	currencySpan := ot.StartSpan("fe.getCurrencies", ot.ChildOf(parentSpan.Context()))
 	currencies, err := fe.getCurrencies(r.Context())
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve currencies"), http.StatusInternalServerError)
 		return
 	}
+	currencySpan.Finish()
+
+	productSpan := ot.StartSpan("fe.getProducts", ot.ChildOf(parentSpan.Context()))
 	products, err := fe.getProducts(r.Context())
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve products"), http.StatusInternalServerError)
 		return
 	}
+	productSpan.Finish()
+
+	cartSpan := ot.StartSpan("fe.getCart", ot.ChildOf(parentSpan.Context()))
 	cart, err := fe.getCart(r.Context(), sessionID(r))
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve cart"), http.StatusInternalServerError)
 		return
 	}
+	cartSpan.Finish()
 
 	type productView struct {
 		Item  *pb.Product
@@ -64,7 +79,9 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ps := make([]productView, len(products))
 	for i, p := range products {
+		convertCurrencySpan := ot.StartSpan("fe.convertCurrency", ot.ChildOf(parentSpan.Context()))
 		price, err := fe.convertCurrency(r.Context(), p.GetPriceUsd(), currentCurrency(r))
+		convertCurrencySpan.Finish()
 		if err != nil {
 			renderHTTPError(log, r, w, errors.Wrapf(err, "failed to do currency conversion for product %s", p.GetId()), http.StatusInternalServerError)
 			return
@@ -84,6 +101,7 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		log.Error(err)
 	}
+	parentSpan.Finish()
 }
 
 func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request) {
