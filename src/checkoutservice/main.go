@@ -103,10 +103,21 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	//srv := grpc.NewServer(grpc.StatsHandler(&ocgrpc.ServerHandler{}))
+
+	decorator := func(
+		span ot.Span,
+		method string,
+		req, resp interface{},
+		grpcError error) {
+		span.SetTag("rpc.call", method)
+	}
+
+	// create the otgrpc.Options for use below
+	rpcdecor := otgrpc.SpanDecorator(decorator)
+
 	srv := grpc.NewServer(
-		grpc.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(tracer)),
-		grpc.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(tracer)))
+		grpc.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(tracer, rpcdecor)),
+		grpc.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(tracer, rpcdecor)))
 	pb.RegisterCheckoutServiceServer(srv, svc)
 	healthpb.RegisterHealthServer(srv, svc)
 	log.Infof("starting to listen on tcp: %q", lis.Addr().String())

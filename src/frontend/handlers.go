@@ -26,7 +26,7 @@ import (
 
 	"github.com/gorilla/mux"
 	ot "github.com/opentracing/opentracing-go"
-	//"github.com/opentracing/opentracing-go"
+	// "google.golang.org/grpc/metadata"
 	//ext "github.com/opentracing/opentracing-go/ext"
 	// "github.com/opentracing/opentracing-go/log"
 
@@ -45,33 +45,34 @@ var (
 )
 
 func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
-	parentSpan, _ := ot.StartSpanFromContext(r.Context(), "frontend.homeHandler")
+
+	var span ot.Span
+	if parentSpan, ok := r.Context().Value("parentSpan").(ot.Span); ok {
+		span = ot.StartSpan("homeHandler", ot.ChildOf(parentSpan.Context()))
+	} else {
+		span = ot.StartSpan("homeHandler")
+	}
+
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	log.WithField("currency", currentCurrency(r)).Info("home")
 
-	currencySpan := ot.StartSpan("fe.getCurrencies", ot.ChildOf(parentSpan.Context()))
-	currencies, err := fe.getCurrencies(r.Context())
+	currencies, err := fe.getCurrencies(ot.ContextWithSpan(r.Context(), span))
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve currencies"), http.StatusInternalServerError)
 		return
 	}
-	currencySpan.Finish()
 
-	productSpan := ot.StartSpan("fe.getProducts", ot.ChildOf(parentSpan.Context()))
-	products, err := fe.getProducts(r.Context())
+	products, err := fe.getProducts(ot.ContextWithSpan(r.Context(), span))
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve products"), http.StatusInternalServerError)
 		return
 	}
-	productSpan.Finish()
 
-	cartSpan := ot.StartSpan("fe.getCart", ot.ChildOf(parentSpan.Context()))
-	cart, err := fe.getCart(r.Context(), sessionID(r))
+	cart, err := fe.getCart(ot.ContextWithSpan(r.Context(), span), sessionID(r))
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve cart"), http.StatusInternalServerError)
 		return
 	}
-	cartSpan.Finish()
 
 	type productView struct {
 		Item  *pb.Product
@@ -79,8 +80,8 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ps := make([]productView, len(products))
 	for i, p := range products {
-		convertCurrencySpan := ot.StartSpan("fe.convertCurrency", ot.ChildOf(parentSpan.Context()))
-		price, err := fe.convertCurrency(r.Context(), p.GetPriceUsd(), currentCurrency(r))
+		convertCurrencySpan := ot.StartSpan("fe.convertCurrency", ot.ChildOf(span.Context()))
+		price, err := fe.convertCurrency(ot.ContextWithSpan(r.Context(),convertCurrencySpan), p.GetPriceUsd(), currentCurrency(r))
 		convertCurrencySpan.Finish()
 		if err != nil {
 			renderHTTPError(log, r, w, errors.Wrapf(err, "failed to do currency conversion for product %s", p.GetId()), http.StatusInternalServerError)
@@ -101,10 +102,17 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		log.Error(err)
 	}
-	parentSpan.Finish()
+	span.Finish()
 }
 
 func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request) {
+	var span ot.Span
+	if parentSpan, ok := r.Context().Value("parentSpan").(ot.Span); ok {
+		span = ot.StartSpan("productHandler", ot.ChildOf(parentSpan.Context()))
+	} else {
+		span = ot.StartSpan("productHandler")
+	}
+
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	id := mux.Vars(r)["id"]
 	if id == "" {
@@ -114,30 +122,30 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 	log.WithField("id", id).WithField("currency", currentCurrency(r)).
 		Debug("serving product page")
 
-	p, err := fe.getProduct(r.Context(), id)
+	p, err := fe.getProduct(ot.ContextWithSpan(r.Context(), span), id)
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve product"), http.StatusInternalServerError)
 		return
 	}
-	currencies, err := fe.getCurrencies(r.Context())
+	currencies, err := fe.getCurrencies(ot.ContextWithSpan(r.Context(),span))
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve currencies"), http.StatusInternalServerError)
 		return
 	}
 
-	cart, err := fe.getCart(r.Context(), sessionID(r))
+	cart, err := fe.getCart(ot.ContextWithSpan(r.Context(), span), sessionID(r))
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve cart"), http.StatusInternalServerError)
 		return
 	}
 
-	price, err := fe.convertCurrency(r.Context(), p.GetPriceUsd(), currentCurrency(r))
+	price, err := fe.convertCurrency(ot.ContextWithSpan(r.Context(), span) , p.GetPriceUsd(), currentCurrency(r))
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to convert currency"), http.StatusInternalServerError)
 		return
 	}
 
-	recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), []string{id})
+	recommendations, err := fe.getRecommendations(ot.ContextWithSpan(r.Context(), span) , sessionID(r), []string{id})
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to get product recommendations"), http.StatusInternalServerError)
 		return
@@ -160,9 +168,17 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 	}); err != nil {
 		log.Println(err)
 	}
+	span.Finish()
 }
 
 func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Request) {
+	var span ot.Span
+	if parentSpan, ok := r.Context().Value("parentSpan").(ot.Span); ok {
+		span = ot.StartSpan("productHandler", ot.ChildOf(parentSpan.Context()))
+	} else {
+		span = ot.StartSpan("productHandler")
+	}
+
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	quantity, _ := strconv.ParseUint(r.FormValue("quantity"), 10, 32)
 	productID := r.FormValue("product_id")
@@ -172,7 +188,7 @@ func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Reques
 	}
 	log.WithField("product", productID).WithField("quantity", quantity).Debug("adding to cart")
 
-	p, err := fe.getProduct(r.Context(), productID)
+	p, err := fe.getProduct(ot.ContextWithSpan(r.Context(), span), productID)
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve product"), http.StatusInternalServerError)
 		return
@@ -199,6 +215,13 @@ func (fe *frontendServer) emptyCartHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request) {
+	var span ot.Span
+	if parentSpan, ok := r.Context().Value("parentSpan").(ot.Span); ok {
+		span = ot.StartSpan("viewCartHandler", ot.ChildOf(parentSpan.Context()))
+	} else {
+		span = ot.StartSpan("viewCartHandler")
+	}
+
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	log.Debug("view user cart")
 	currencies, err := fe.getCurrencies(r.Context())
@@ -206,19 +229,19 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve currencies"), http.StatusInternalServerError)
 		return
 	}
-	cart, err := fe.getCart(r.Context(), sessionID(r))
+	cart, err := fe.getCart(ot.ContextWithSpan(r.Context(), span), sessionID(r))
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve cart"), http.StatusInternalServerError)
 		return
 	}
 
-	recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), cartIDs(cart))
+	recommendations, err := fe.getRecommendations(ot.ContextWithSpan(r.Context(), span), sessionID(r), cartIDs(cart))
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to get product recommendations"), http.StatusInternalServerError)
 		return
 	}
 
-	shippingCost, err := fe.getShippingQuote(r.Context(), cart, currentCurrency(r))
+	shippingCost, err := fe.getShippingQuote(ot.ContextWithSpan(r.Context(), span), cart, currentCurrency(r))
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to get shipping quote"), http.StatusInternalServerError)
 		return
@@ -232,12 +255,12 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 	items := make([]cartItemView, len(cart))
 	totalPrice := pb.Money{CurrencyCode: currentCurrency(r)}
 	for i, item := range cart {
-		p, err := fe.getProduct(r.Context(), item.GetProductId())
+		p, err := fe.getProduct(ot.ContextWithSpan(r.Context(), span), item.GetProductId())
 		if err != nil {
 			renderHTTPError(log, r, w, errors.Wrapf(err, "could not retrieve product #%s", item.GetProductId()), http.StatusInternalServerError)
 			return
 		}
-		price, err := fe.convertCurrency(r.Context(), p.GetPriceUsd(), currentCurrency(r))
+		price, err := fe.convertCurrency(ot.ContextWithSpan(r.Context(), span), p.GetPriceUsd(), currentCurrency(r))
 		if err != nil {
 			renderHTTPError(log, r, w, errors.Wrapf(err, "could not convert currency for product #%s", item.GetProductId()), http.StatusInternalServerError)
 			return
@@ -267,9 +290,16 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 	}); err != nil {
 		log.Println(err)
 	}
+	span.Finish()
 }
 
 func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Request) {
+	var span ot.Span
+	if parentSpan, ok := r.Context().Value("parentSpan").(ot.Span); ok {
+		span = ot.StartSpan("placeOrderHandler", ot.ChildOf(parentSpan.Context()))
+	} else {
+		span = ot.StartSpan("placeOrderHandler")
+	}
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	log.Debug("placing order")
 
@@ -287,7 +317,7 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 	)
 
 	order, err := pb.NewCheckoutServiceClient(fe.checkoutSvcConn).
-		PlaceOrder(r.Context(), &pb.PlaceOrderRequest{
+		PlaceOrder(ot.ContextWithSpan(r.Context(),span), &pb.PlaceOrderRequest{
 			Email: email,
 			CreditCard: &pb.CreditCardInfo{
 				CreditCardNumber:          ccNumber,
@@ -310,7 +340,7 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 	log.WithField("order", order.GetOrder().GetOrderId()).Info("order placed")
 
 	order.GetOrder().GetItems()
-	recommendations, _ := fe.getRecommendations(r.Context(), sessionID(r), nil)
+	recommendations, _ := fe.getRecommendations(ot.ContextWithSpan(r.Context(), span), sessionID(r), nil)
 
 	totalPaid := *order.GetOrder().GetShippingCost()
 	for _, v := range order.GetOrder().GetItems() {
@@ -327,6 +357,7 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 	}); err != nil {
 		log.Println(err)
 	}
+	span.Finish()
 }
 
 func (fe *frontendServer) logoutHandler(w http.ResponseWriter, r *http.Request) {

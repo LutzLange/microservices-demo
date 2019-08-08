@@ -129,11 +129,22 @@ func run(port string) string {
 		LogLevel: instana.Debug})
 	ot.InitGlobalTracer(tracer)
 
+	decorator := func(
+		span ot.Span,
+		method string,
+		req, resp interface{},
+		grpcError error) {
+		span.SetTag("rpc.call", method)
+	}
+
+	// create the otgrpc.Options for use below
+	rpcdecor := otgrpc.SpanDecorator(decorator)
+
 	srv := grpc.NewServer(
 		grpc.UnaryInterceptor(
-			otgrpc.OpenTracingServerInterceptor(tracer)),
+			otgrpc.OpenTracingServerInterceptor(tracer, rpcdecor)),
 		grpc.StreamInterceptor(
-			otgrpc.OpenTracingStreamServerInterceptor(tracer)),
+			otgrpc.OpenTracingStreamServerInterceptor(tracer, rpcdecor)),
 	)
 	//srv := grpc.NewServer(grpc.StatsHandler(&ocgrpc.ServerHandler{}))
 	svc := &productCatalog{}

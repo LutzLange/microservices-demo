@@ -78,8 +78,19 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	// srv := grpc.NewServer(grpc.StatsHandler(&ocgrpc.ServerHandler{}))
-	srv := grpc.NewServer(grpc.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(tracer)))
+
+	decorator := func(
+		span ot.Span,
+		method string,
+		req, resp interface{},
+		grpcError error) {
+		span.SetTag("rpc.call", method)
+	}
+
+	// create the otgrpc.Options for use below
+	rpcdecor := otgrpc.SpanDecorator(decorator)
+
+	srv := grpc.NewServer(grpc.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(tracer, rpcdecor)))
 	svc := &server{}
 	pb.RegisterShippingServiceServer(srv, svc)
 	healthpb.RegisterHealthServer(srv, svc)
