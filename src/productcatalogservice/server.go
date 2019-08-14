@@ -135,6 +135,8 @@ func run(port string) string {
 		req, resp interface{},
 		grpcError error) {
 		span.SetTag("rpc.call", method)
+		span.SetTag("rpc.flavor", "grpc")
+		span.SetTag("rpc.host", l.Addr().String())
 	}
 
 	// create the otgrpc.Options for use below
@@ -146,7 +148,7 @@ func run(port string) string {
 		grpc.StreamInterceptor(
 			otgrpc.OpenTracingStreamServerInterceptor(tracer, rpcdecor)),
 	)
-	//srv := grpc.NewServer(grpc.StatsHandler(&ocgrpc.ServerHandler{}))
+
 	svc := &productCatalog{}
 	pb.RegisterProductCatalogServiceServer(srv, svc)
 	healthpb.RegisterHealthServer(srv, svc)

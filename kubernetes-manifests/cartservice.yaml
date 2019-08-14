@@ -38,6 +38,18 @@ spec:
           value: "7070"
         - name: LISTEN_ADDR
           value: "0.0.0.0"
+        - name: CORECLR_ENABLE_PROFILING
+          value: "1"
+        - name: CORECLR_PROFILER
+          value: "{cf0d821e-299b-5307-a3d8-b283c03916dd}"
+        - name: CORECLR_PROFILER_PATH
+          value: "/app/instana_tracing/CoreProfiler.so"
+        - name: INSTANA_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: INSTANA_AGENT_PORT
+          value: "42699"
         resources:
           requests:
             cpu: 200m

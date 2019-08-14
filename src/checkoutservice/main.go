@@ -110,6 +110,8 @@ func main() {
 		req, resp interface{},
 		grpcError error) {
 		span.SetTag("rpc.call", method)
+		span.SetTag("rpc.flavor", "grpc")
+		span.SetTag("rpc.host", lis.Addr().String())
 	}
 
 	// create the otgrpc.Options for use below

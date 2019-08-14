@@ -1,7 +1,8 @@
 FROM microsoft/dotnet:2.1-sdk-alpine as builder
 WORKDIR /app
 COPY . .
-RUN dotnet restore && \
+RUN dotnet add package Instana.Profiler.Linux.Bundled.Refs --version 1.0.54.5 && \
+    dotnet restore && \
     dotnet build && \
     dotnet publish -c release -r linux-musl-x64 -o /cartservice
 

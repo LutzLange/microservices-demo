@@ -145,9 +145,6 @@ func main() {
 	var handler http.Handler = r
 	handler = &logHandler{log: log, next: handler} // add logging
 	handler = ensureSessionID(handler)             // add session ID
-	//handler = &ochttp.Handler{                     // add opencensus instrumentation
-	//	Handler:     handler,
-	//	Propagation: &b3.HTTPFormat{}}
 
 	log.Infof("starting server on " + addr + ":" + srvPort)
 	log.Fatal(http.ListenAndServe(addr+":"+srvPort, handler))
@@ -163,7 +160,7 @@ func mustMapEnv(target *string, envKey string) {
 
 func mustConnGRPC(ctx context.Context, conn **grpc.ClientConn, addr string) {
 	var err error
-
+    var ADDR = addr
 	/*
 		Define a Decorator Function to set rpc.call Tags on all traces
 		type SpanDecoratorFunc func(
@@ -178,6 +175,11 @@ func mustConnGRPC(ctx context.Context, conn **grpc.ClientConn, addr string) {
 		req, resp interface{},
 		grpcError error) {
 		span.SetTag("rpc.call", method)
+		span.SetTag("rpc.flavor", "grpc")
+		span.SetTag("rpc.host", ADDR)
+
+		// rpc.host
+		// rpc.port
 	}
 
 	// create the otgrpc.Options for use below
