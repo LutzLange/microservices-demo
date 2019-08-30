@@ -24,6 +24,7 @@ spec:
     metadata:
       labels:
         app: redis-cart
+        bundle: hipstershop
     spec:
       containers:
       - name: redis

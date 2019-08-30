@@ -24,6 +24,7 @@ spec:
     metadata:
       labels:
         app: productcatalogservice
+        bundle: hipstershop
     spec:
       terminationGracePeriodSeconds: 5
       containers:

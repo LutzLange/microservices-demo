@@ -24,6 +24,7 @@ spec:
     metadata:
       labels:
         app: shippingservice
+        bundle: hipstershop
     spec:
       containers:
       - name: shippingservice

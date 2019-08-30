@@ -25,6 +25,7 @@ spec:
     metadata:
       labels:
         app: loadgenerator
+        bundle: hipstershop
     spec:
       terminationGracePeriodSeconds: 5
       restartPolicy: Always

@@ -28,7 +28,6 @@ import (
 	// Added Instana
 	instana "github.com/LutzLange/go-sensor"
 	ot "github.com/opentracing/opentracing-go"
-	// "github.com/opentracing/opentracing-go/ext"
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 )
 
@@ -176,10 +175,9 @@ func mustConnGRPC(ctx context.Context, conn **grpc.ClientConn, addr string) {
 		grpcError error) {
 		span.SetTag("rpc.call", method)
 		span.SetTag("rpc.flavor", "grpc")
+		// this is host:port ToDo separate host and port
 		span.SetTag("rpc.host", ADDR)
-
-		// rpc.host
-		// rpc.port
+		// rpc.params
 	}
 
 	// create the otgrpc.Options for use below
