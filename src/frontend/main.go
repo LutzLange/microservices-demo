@@ -27,8 +27,8 @@ import (
 	"google.golang.org/grpc"
 	// Added Instana
 	instana "github.com/LutzLange/go-sensor"
-	ot "github.com/opentracing/opentracing-go"
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
+	ot "github.com/opentracing/opentracing-go"
 )
 
 const (

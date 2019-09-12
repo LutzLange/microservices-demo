@@ -26,6 +26,7 @@ import (
 
 	"github.com/gorilla/mux"
 	ot "github.com/opentracing/opentracing-go"
+	instana "github.com/LutzLange/go-sensor"
 	// "google.golang.org/grpc/metadata"
 	//ext "github.com/opentracing/opentracing-go/ext"
 	// "github.com/opentracing/opentracing-go/log"
@@ -46,12 +47,19 @@ var (
 
 func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 
+	myTraceId := ""
 	var span ot.Span
 	if parentSpan, ok := r.Context().Value("parentSpan").(ot.Span); ok {
 		span = ot.StartSpan("homeHandler", ot.ChildOf(parentSpan.Context()))
+		myTraceId = strconv.FormatInt(parentSpan.Context().(instana.SpanContext).TraceID, 16)
 	} else {
 		span = ot.StartSpan("homeHandler")
+		myTraceId = strconv.FormatInt(span.Context().(instana.SpanContext).TraceID, 16)
 	}
+	//meta := make(map[string]string, 1)
+	//meta["page"] = "hipstershop"
+
+	// eumsnippet := instana.EumSnippet("3kyjFmSdR-uDy3sbCK0bkg", myTraceId, meta)
 
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	log.WithField("currency", currentCurrency(r)).Info("home")
@@ -92,6 +100,7 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := templates.ExecuteTemplate(w, "home", map[string]interface{}{
 		"session_id":    sessionID(r),
+		"traceid":       myTraceId,
 		"request_id":    r.Context().Value(ctxKeyRequestID{}),
 		"user_currency": currentCurrency(r),
 		"currencies":    currencies,
@@ -107,10 +116,13 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 
 func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request) {
 	var span ot.Span
+	myTraceId := ""
 	if parentSpan, ok := r.Context().Value("parentSpan").(ot.Span); ok {
 		span = ot.StartSpan("productHandler", ot.ChildOf(parentSpan.Context()))
+		myTraceId = strconv.FormatInt(parentSpan.Context().(instana.SpanContext).TraceID, 16)
 	} else {
 		span = ot.StartSpan("productHandler")
+		myTraceId = strconv.FormatInt(span.Context().(instana.SpanContext).TraceID, 16)
 	}
 
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
@@ -158,6 +170,7 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 
 	if err := templates.ExecuteTemplate(w, "product", map[string]interface{}{
 		"session_id":      sessionID(r),
+		"traceid":         myTraceId,
 		"request_id":      r.Context().Value(ctxKeyRequestID{}),
 		"ad":              fe.chooseAd(r.Context(), p.Categories, log),
 		"user_currency":   currentCurrency(r),
@@ -171,12 +184,17 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 	span.Finish()
 }
 
+
+// ToDo think about EUM tracing here is this another full page load?
 func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Request) {
 	var span ot.Span
+	//myTraceId := ""
 	if parentSpan, ok := r.Context().Value("parentSpan").(ot.Span); ok {
 		span = ot.StartSpan("productHandler", ot.ChildOf(parentSpan.Context()))
+		//myTraceId = strconv.FormatInt(parentSpan.Context().(instana.SpanContext).TraceID, 10)
 	} else {
 		span = ot.StartSpan("productHandler")
+		//myTraceId = strconv.FormatInt(span.Context().(instana.SpanContext).TraceID, 10)
 	}
 
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
@@ -200,6 +218,7 @@ func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Reques
 	}
 	w.Header().Set("location", "/cart")
 	w.WriteHeader(http.StatusFound)
+	span.Finish()
 }
 
 func (fe *frontendServer) emptyCartHandler(w http.ResponseWriter, r *http.Request) {
@@ -216,10 +235,13 @@ func (fe *frontendServer) emptyCartHandler(w http.ResponseWriter, r *http.Reques
 
 func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request) {
 	var span ot.Span
+	myTraceId := ""
 	if parentSpan, ok := r.Context().Value("parentSpan").(ot.Span); ok {
-		span = ot.StartSpan("viewCartHandler", ot.ChildOf(parentSpan.Context()))
+		span = ot.StartSpan("productHandler", ot.ChildOf(parentSpan.Context()))
+		myTraceId = strconv.FormatInt(parentSpan.Context().(instana.SpanContext).TraceID, 16)
 	} else {
-		span = ot.StartSpan("viewCartHandler")
+		span = ot.StartSpan("productHandler")
+		myTraceId = strconv.FormatInt(span.Context().(instana.SpanContext).TraceID, 16)
 	}
 
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
@@ -278,6 +300,7 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 	year := time.Now().Year()
 	if err := templates.ExecuteTemplate(w, "cart", map[string]interface{}{
 		"session_id":       sessionID(r),
+		"traceid":          myTraceId,
 		"request_id":       r.Context().Value(ctxKeyRequestID{}),
 		"user_currency":    currentCurrency(r),
 		"currencies":       currencies,
@@ -295,11 +318,15 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 
 func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Request) {
 	var span ot.Span
+	myTraceId := ""
 	if parentSpan, ok := r.Context().Value("parentSpan").(ot.Span); ok {
-		span = ot.StartSpan("placeOrderHandler", ot.ChildOf(parentSpan.Context()))
+		span = ot.StartSpan("productHandler", ot.ChildOf(parentSpan.Context()))
+		myTraceId = strconv.FormatInt(parentSpan.Context().(instana.SpanContext).TraceID, 16)
 	} else {
-		span = ot.StartSpan("placeOrderHandler")
+		span = ot.StartSpan("productHandler")
+		myTraceId = strconv.FormatInt(span.Context().(instana.SpanContext).TraceID, 16)
 	}
+
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	log.Debug("placing order")
 
@@ -349,6 +376,7 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 
 	if err := templates.ExecuteTemplate(w, "order", map[string]interface{}{
 		"session_id":      sessionID(r),
+		"traceid":         myTraceId,
 		"request_id":      r.Context().Value(ctxKeyRequestID{}),
 		"user_currency":   currentCurrency(r),
 		"order":           order.GetOrder(),
@@ -405,16 +433,28 @@ func (fe *frontendServer) chooseAd(ctx context.Context, ctxKeys []string, log lo
 }
 
 func renderHTTPError(log logrus.FieldLogger, r *http.Request, w http.ResponseWriter, err error, code int) {
+	var span ot.Span
+	myTraceId := ""
+	if parentSpan, ok := r.Context().Value("parentSpan").(ot.Span); ok {
+		span = ot.StartSpan("productHandler", ot.ChildOf(parentSpan.Context()))
+		myTraceId = strconv.FormatInt(parentSpan.Context().(instana.SpanContext).TraceID, 16)
+	} else {
+		span = ot.StartSpan("productHandler")
+		myTraceId = strconv.FormatInt(span.Context().(instana.SpanContext).TraceID, 16)
+	}
+
 	log.WithField("error", err).Error("request error")
 	errMsg := fmt.Sprintf("%+v", err)
 
 	w.WriteHeader(code)
 	templates.ExecuteTemplate(w, "error", map[string]interface{}{
 		"session_id":  sessionID(r),
+		"traceid":     myTraceId,
 		"request_id":  r.Context().Value(ctxKeyRequestID{}),
 		"error":       errMsg,
 		"status_code": code,
 		"status":      http.StatusText(code)})
+	span.Finish()
 }
 
 func currentCurrency(r *http.Request) string {

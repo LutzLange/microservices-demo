@@ -7,9 +7,20 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Hipster Shop</title>
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB" crossorigin="anonymous">
+    <script>
+     (function(c,e,f,k,g,h,b,a,d){c[g]||(c[g]=h,b=c[h]=function(){
+      b.q.push(arguments)},b.q=[],b.l=1*new Date,a=e.createElement(f),a.async=1,
+      a.src=k,a.setAttribute("crossorigin", "anonymous"),d=e.getElementsByTagName(f)[0],
+      d.parentNode.insertBefore(a,d))})(window,document,"script",
+      "//eum.instana.io/eum.min.js","InstanaEumObject","ineum");
+      ineum('reportingUrl', 'https://eum-us-west-2.instana.io');
+      ineum('key', '3kyjFmSdR-uDy3sbCK0bkg');
+      ineum('traceId', {{$.traceid}});
+      ineum('page', "Hipster Shop");
+      ineum('user', {{$.session_id}}, "unknown user", "noUserEmail");
+    </script>
 </head>
 <body>
-
     <header>
         <div class="navbar navbar-dark bg-dark box-shadow">
             <div class="container d-flex justify-content-between">
@@ -30,6 +41,4 @@
             </div>
         </div>
     </header>
-
-
 {{end}}
