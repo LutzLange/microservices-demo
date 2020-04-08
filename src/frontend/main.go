@@ -101,9 +101,7 @@ func main() {
 	}
 	log.Out = os.Stdout
 
-	//go initProfiling(log, "frontend", "1.0.0")
-	//go initTracing(log)
-
+	// initialize OpenTracing with Instana Tracer
 	ot.InitGlobalTracer(tracer)
 
 	srvPort := port

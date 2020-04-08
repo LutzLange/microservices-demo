@@ -51,16 +51,17 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 	var span ot.Span
 	if parentSpan, ok := r.Context().Value("parentSpan").(ot.Span); ok {
 		span = ot.StartSpan("homeHandler", ot.ChildOf(parentSpan.Context()))
-		myTraceId = strconv.FormatInt(parentSpan.Context().(instana.SpanContext).TraceID, 16)
+	    //( span, _ ) := r.Context().Value("parentSpan").(ot.Span)
+	    myTraceId = strconv.FormatInt(span.Context().(instana.SpanContext).TraceID, 16)
 	} else {
 		span = ot.StartSpan("homeHandler")
 		myTraceId = strconv.FormatInt(span.Context().(instana.SpanContext).TraceID, 16)
 	}
-	//meta := make(map[string]string, 1)
-	//meta["page"] = "hipstershop"
 
-	// eumsnippet := instana.EumSnippet("3kyjFmSdR-uDy3sbCK0bkg", myTraceId, meta)
-
+    /*
+    span := r.Context().Value("parentSpan").(ot.Span)
+    myTraceId := strconv.FormatInt(span.Context().(instana.SpanContext).TraceID, 16)
+    */
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	log.WithField("currency", currentCurrency(r)).Info("home")
 
