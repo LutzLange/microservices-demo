@@ -65,6 +65,10 @@ spec:
             value: "checkoutservice:5050"
           - name: AD_SERVICE_ADDR
             value: "adservice:9555"
+          - name: DD_AGENT_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
           # - name: DISABLE_TRACING
           #   value: "1"
           # - name: DISABLE_PROFILER
