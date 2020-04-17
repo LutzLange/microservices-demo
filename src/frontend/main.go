@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"fmt"
+	// "google.golang.org/appengine/log"
 	"net/http"
 	"os"
 	"time"
@@ -24,7 +25,7 @@ import (
 	"cloud.google.com/go/profiler"
 	"contrib.go.opencensus.io/exporter/jaeger"
 	"contrib.go.opencensus.io/exporter/stackdriver"
-	"github.com/gorilla/mux"
+	//"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/plugin/ocgrpc"
@@ -33,6 +34,8 @@ import (
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/trace"
 	"google.golang.org/grpc"
+	"gopkg.in/DataDog/dd-trace-go.v1/contrib/gorilla/mux"
+    "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
@@ -82,6 +85,11 @@ type frontendServer struct {
 
 func main() {
 	ctx := context.Background()
+
+	// start the tracer with zero or more options
+    tracer.Start(tracer.WithServiceName("hipstershop"))
+    defer tracer.Stop()
+
 	log := logrus.New()
 	log.Level = logrus.DebugLevel
 	log.Formatter = &logrus.JSONFormatter{
@@ -130,7 +138,8 @@ func main() {
 	mustConnGRPC(ctx, &svc.checkoutSvcConn, svc.checkoutSvcAddr)
 	mustConnGRPC(ctx, &svc.adSvcConn, svc.adSvcAddr)
 
-	r := mux.NewRouter()
+	r := mux.NewRouter(mux.WithServiceName("HipsterShop"))
+
 	r.HandleFunc("/", svc.homeHandler).Methods(http.MethodGet, http.MethodHead)
 	r.HandleFunc("/product/{id}", svc.productHandler).Methods(http.MethodGet, http.MethodHead)
 	r.HandleFunc("/cart", svc.viewCartHandler).Methods(http.MethodGet, http.MethodHead)
