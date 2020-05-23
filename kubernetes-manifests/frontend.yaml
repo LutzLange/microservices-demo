@@ -67,6 +67,8 @@ spec:
             value: "adservice:9555"
           - name: NEW_RELIC_LICENSE_KEY
             value: "eu01xxa7dbff94bb896a84902bc1224e23e8NRAL"
+          - name: ENV_PLATFORM
+            value: "gcp"
           # - name: DISABLE_TRACING
           #   value: "1"
           # - name: DISABLE_PROFILER
