@@ -25,6 +25,8 @@ import (
 	"contrib.go.opencensus.io/exporter/jaeger"
 	"contrib.go.opencensus.io/exporter/stackdriver"
 	"github.com/gorilla/mux"
+	nrgrpc "github.com/newrelic/go-agent/v3/integrations/nrgrpc"
+	newrelic "github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/plugin/ocgrpc"
@@ -82,6 +84,18 @@ type frontendServer struct {
 
 func main() {
 	ctx := context.Background()
+
+	app, err := newrelic.NewApplication(
+		newrelic.ConfigAppName("HipsterShop"),
+		newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+		newrelic.ConfigDebugLogger(os.Stdout),
+		newrelic.ConfigDistributedTracerEnabled(true),
+	)
+	if nil != err {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
 	log := logrus.New()
 	log.Level = logrus.DebugLevel
 	log.Formatter = &logrus.JSONFormatter{
@@ -131,14 +145,14 @@ func main() {
 	mustConnGRPC(ctx, &svc.adSvcConn, svc.adSvcAddr)
 
 	r := mux.NewRouter()
-	r.HandleFunc("/", svc.homeHandler).Methods(http.MethodGet, http.MethodHead)
-	r.HandleFunc("/product/{id}", svc.productHandler).Methods(http.MethodGet, http.MethodHead)
-	r.HandleFunc("/cart", svc.viewCartHandler).Methods(http.MethodGet, http.MethodHead)
-	r.HandleFunc("/cart", svc.addToCartHandler).Methods(http.MethodPost)
-	r.HandleFunc("/cart/empty", svc.emptyCartHandler).Methods(http.MethodPost)
-	r.HandleFunc("/setCurrency", svc.setCurrencyHandler).Methods(http.MethodPost)
-	r.HandleFunc("/logout", svc.logoutHandler).Methods(http.MethodGet)
-	r.HandleFunc("/cart/checkout", svc.placeOrderHandler).Methods(http.MethodPost)
+	r.HandleFunc(newrelic.WrapHandleFunc(app, "/", svc.homeHandler)).Methods(http.MethodGet, http.MethodHead)
+	r.HandleFunc(newrelic.WrapHandleFunc(app, "/product/{id}", svc.productHandler)).Methods(http.MethodGet, http.MethodHead)
+	r.HandleFunc(newrelic.WrapHandleFunc(app, "/cart", svc.viewCartHandler)).Methods(http.MethodGet, http.MethodHead)
+	r.HandleFunc(newrelic.WrapHandleFunc(app, "/cart", svc.addToCartHandler)).Methods(http.MethodPost)
+	r.HandleFunc(newrelic.WrapHandleFunc(app, "/cart/empty", svc.emptyCartHandler)).Methods(http.MethodPost)
+	r.HandleFunc(newrelic.WrapHandleFunc(app, "/setCurrency", svc.setCurrencyHandler)).Methods(http.MethodPost)
+	r.HandleFunc(newrelic.WrapHandleFunc(app, "/logout", svc.logoutHandler)).Methods(http.MethodGet)
+	r.HandleFunc(newrelic.WrapHandleFunc(app, "/cart/checkout", svc.placeOrderHandler)).Methods(http.MethodPost)
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
 	r.HandleFunc("/robots.txt", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "User-agent: *\nDisallow: /") })
 	r.HandleFunc("/_healthz", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "ok") })
@@ -266,7 +280,9 @@ func mustConnGRPC(ctx context.Context, conn **grpc.ClientConn, addr string) {
 	*conn, err = grpc.DialContext(ctx, addr,
 		grpc.WithInsecure(),
 		grpc.WithTimeout(time.Second*3),
-		grpc.WithStatsHandler(&ocgrpc.ClientHandler{}))
+		grpc.WithStatsHandler(&ocgrpc.ClientHandler{}),
+		grpc.WithUnaryInterceptor(nrgrpc.UnaryClientInterceptor),
+		grpc.WithStreamInterceptor(nrgrpc.StreamClientInterceptor))
 	if err != nil {
 		panic(errors.Wrapf(err, "grpc: failed to connect %s", addr))
 	}

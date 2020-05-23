@@ -68,3 +68,7 @@
 [[constraint]]
   name = "contrib.go.opencensus.io/exporter/jaeger"
   version = "0.2.0"
+
+[[constraint]]
+  name = "github.com/newrelic/go-agent"
+  version = "v3.5.0"
