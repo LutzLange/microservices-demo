@@ -17,7 +17,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"html/template"
+	//"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -49,19 +51,29 @@ var (
 func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	log.WithField("currency", currentCurrency(r)).Info("home")
+
+	// New Relic?
+	txn := newrelic.FromContext(r.Context())
+
+	// Insert Distributed Trace Headers?
+	txn.InsertDistributedTraceHeaders(r.Header)
+
 	currencies, err := fe.getCurrencies(r.Context())
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve currencies"), http.StatusInternalServerError)
+		txn.NoticeError(err)
 		return
 	}
 	products, err := fe.getProducts(r.Context())
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve products"), http.StatusInternalServerError)
+		txn.NoticeError(err)
 		return
 	}
 	cart, err := fe.getCart(r.Context(), sessionID(r))
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve cart"), http.StatusInternalServerError)
+		txn.NoticeError(err)
 		return
 	}
 
@@ -74,6 +86,7 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 		price, err := fe.convertCurrency(r.Context(), p.GetPriceUsd(), currentCurrency(r))
 		if err != nil {
 			renderHTTPError(log, r, w, errors.Wrapf(err, "failed to do currency conversion for product %s", p.GetId()), http.StatusInternalServerError)
+			txn.NoticeError(err)
 			return
 		}
 		ps[i] = productView{p, price}
@@ -97,6 +110,7 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 		"platform_css":  plat.css,
 		"platform_name": plat.provider,
 	}); err != nil {
+		txn.NoticeError(err)
 		log.Error(err)
 	}
 }
@@ -118,6 +132,12 @@ func (plat *platformDetails) setPlatformDetails(env string) {
 }
 
 func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request) {
+
+	// New Relic?
+	txn := newrelic.FromContext(r.Context())
+	txn.InsertDistributedTraceHeaders(r.Header)
+	//ctx :=  newrelic.NewContext(r.Context(),txn)
+
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	id := mux.Vars(r)["id"]
 	if id == "" {
@@ -371,6 +391,12 @@ func (fe *frontendServer) logoutHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (fe *frontendServer) setCurrencyHandler(w http.ResponseWriter, r *http.Request) {
+	// New Relic?
+	txn := newrelic.FromContext(r.Context())
+
+	// Insert Distributed Trace Headers?
+	txn.InsertDistributedTraceHeaders(r.Header)
+
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	cur := r.FormValue("currency_code")
 	log.WithField("curr.new", cur).WithField("curr.old", currentCurrency(r)).

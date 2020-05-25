@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+require('newrelic');
 
 if(process.env.DISABLE_PROFILER) {
   console.log("Profiler disabled.")

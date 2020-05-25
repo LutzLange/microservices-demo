@@ -35,6 +35,14 @@ spec:
         env:
         - name: PORT
           value: "7000"
+        - name: NEW_RELIC_APP_NAME
+          value: "currencyservice"
+        - name: NEW_RELIC_LICENSE_KEY
+          value: "eu01xxa7dbff94bb896a84902bc1224e23e8NRAL"
+        - name: NEW_RELIC_NO_CONFIG_FILE
+          value: "true"
+        - name: NEW_RELIC_DISTRIBUTED_TRACING
+          value: "true"
         # - name: DISABLE_TRACING
         #   value: "1"
         # - name: DISABLE_PROFILER

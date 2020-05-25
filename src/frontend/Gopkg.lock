@@ -115,9 +115,11 @@
   version = "v1.0.3"
 
 [[projects]]
-  digest = "1:a9d4e25f7dd9be4b2e01124d6a16462703fe2555bab31870b04ab36bd6e3f14a"
+  digest = "1:293ab98814ff0d9878398c4a574449d0e04c1ee34287a2230709e3a2d1baded7"
   name = "github.com/newrelic/go-agent"
   packages = [
+    "v3/integrations/logcontext",
+    "v3/integrations/logcontext/nrlogrusplugin",
     "v3/integrations/nrgrpc",
     "v3/internal",
     "v3/internal/cat",
@@ -435,6 +437,7 @@
     "github.com/golang/protobuf/proto",
     "github.com/google/uuid",
     "github.com/gorilla/mux",
+    "github.com/newrelic/go-agent/v3/integrations/logcontext/nrlogrusplugin",
     "github.com/newrelic/go-agent/v3/integrations/nrgrpc",
     "github.com/newrelic/go-agent/v3/newrelic",
     "github.com/pkg/errors",

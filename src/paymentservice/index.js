@@ -16,6 +16,8 @@
 
 'use strict';
 
+require('newrelic');
+
 require('@google-cloud/profiler').start({
   serviceContext: {
     service: 'paymentservice',

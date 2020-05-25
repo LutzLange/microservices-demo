@@ -27,6 +27,7 @@ import (
 	"github.com/gorilla/mux"
 	nrgrpc "github.com/newrelic/go-agent/v3/integrations/nrgrpc"
 	newrelic "github.com/newrelic/go-agent/v3/newrelic"
+	"github.com/newrelic/go-agent/v3/integrations/logcontext/nrlogrusplugin"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/plugin/ocgrpc"
@@ -83,7 +84,8 @@ type frontendServer struct {
 }
 
 func main() {
-	ctx := context.Background()
+	txn := newrelic.FromContext(context.Background())
+	ctx := newrelic.NewContext(context.Background(),txn)
 
 	app, err := newrelic.NewApplication(
 		newrelic.ConfigAppName("HipsterShop"),
@@ -97,8 +99,10 @@ func main() {
 	}
 
 	log := logrus.New()
+	log.SetFormatter(nrlogrusplugin.ContextFormatter{})
 	log.Level = logrus.DebugLevel
-	log.Formatter = &logrus.JSONFormatter{
+/*
+    log.Formatter = &logrus.JSONFormatter{
 		FieldMap: logrus.FieldMap{
 			logrus.FieldKeyTime:  "timestamp",
 			logrus.FieldKeyLevel: "severity",
@@ -107,12 +111,13 @@ func main() {
 		TimestampFormat: time.RFC3339Nano,
 	}
 	log.Out = os.Stdout
+*/
 
 	if os.Getenv("DISABLE_TRACING") == "" {
-		log.Info("Tracing enabled.")
+		log.WithContext(ctx).Info("Tracing enabled.")
 		go initTracing(log)
 	} else {
-		log.Info("Tracing disabled.")
+		log.WithContext(ctx).Info("Tracing disabled.")
 	}
 
 	if os.Getenv("DISABLE_PROFILER") == "" {
